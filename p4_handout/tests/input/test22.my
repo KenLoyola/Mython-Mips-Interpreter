@@ -1,0 +1,10 @@
+def foo():
+    print("foo\n")
+enddef
+
+def bar():
+    foo()
+    print("bar\n")
+enddef
+
+bar()
