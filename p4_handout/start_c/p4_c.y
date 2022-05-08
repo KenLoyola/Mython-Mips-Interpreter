@@ -63,11 +63,11 @@ int numScopes = 0; //keeps track number of scopes
 %token LP RP COLON COMMA COMMENT
 
 %union{
-	char id_name[25];
-	char str[25];
+	char id_name[100];
+	char str[100];
 	int num;
 	struct {
-		char curName[25];
+		char curName[100];
 		int reg;
 		int val;
 		int strChk;
@@ -162,7 +162,8 @@ return_stmt	: RETURN exp {
 		}
 
 expression	: rel_exp {
-			$$.reg = $1.reg; //assigns the attribute value
+			snprintf(recentReg, 4, "$t%d", $1.reg); //assigns the attribute value
+			$$.strChk = 0; //0 for no string (its bool/int)
 		}
 		| exp {
 			//assigns the attribute values for the NT
@@ -178,42 +179,36 @@ rel_exp		: exp EQ exp {
 			$$.reg = $1.reg; //assigns the register used
 			//prints out the relation expression
 			printf("\tseq $t%d,$t%d,$t%d\n", $1.reg, $1.reg, $3.reg);
-			tRegs[$$.reg] = 0; //clears the 2 t registers
 			tRegs[$3.reg] = 0;
 		}
 		| exp NE exp {
 			$$.reg = $1.reg; //assigns the register used
 			//prints out the relation expression
 			printf("\tsne $t%d,$t%d,$t%d\n", $1.reg, $1.reg, $3.reg);
-			tRegs[$$.reg] = 0; //clears the 2 t registers
 			tRegs[$3.reg] = 0;
 		}
 		| exp LT exp {
 			$$.reg = $1.reg; //assigns the register used
 			//prints out the relation expression
 			printf("\tslt $t%d,$t%d,$t%d\n", $1.reg, $1.reg, $3.reg);
-			tRegs[$$.reg] = 0; //clears the 2 t registers
 			tRegs[$3.reg] = 0;
 		}
 		| exp LE exp {
 			$$.reg = $1.reg; //assigns the register used
 			//prints out the relation expression
 			printf("\tsle $t%d,$t%d,$t%d\n", $1.reg, $1.reg, $3.reg);
-			tRegs[$$.reg] = 0; //clears the 2 t registers
 			tRegs[$3.reg] = 0;
 		}
 		| exp GT exp {
 			$$.reg = $1.reg; //assigns the register used
 			//prints out the relation expression
 			printf("\tsgt $t%d,$t%d,$t%d\n", $1.reg, $1.reg, $3.reg);
-			tRegs[$$.reg] = 0; //clears the 2 t registers
 			tRegs[$3.reg] = 0;
 		}
 		| exp GE exp {
 			$$.reg = $1.reg; //assigns the register used
 			//prints out the relation expression
 			printf("\tsge $t%d,$t%d,$t%d\n", $1.reg, $1.reg, $3.reg);
-			tRegs[$$.reg] = 0; //clears the 2 t registers
 			tRegs[$3.reg] = 0;
 		}
 		| LP rel_exp RP {
@@ -382,34 +377,52 @@ call_head	: ID LP {
 			strcpy($$, $1); //copies the string ID
 		}
 
-condition_stmt	: if_head statements ENDIF 
+condition_stmt	: if_head statements ENDIF {
+			printf("\nL%d:\n", stack[top]); //shows label
+			//pops off the stack
+			--top;
+			stackSize -= 1; //decreases size
+			stack = realloc(stack, sizeof *stack * stackSize);
+		}
 		| if_head statements else_head statements ENDIF {
 			printf("\nL%d:\n", stack[top]); //shows label
 			pop(); //pops off the stack
 		}
 
 if_head		: IF expression COLON {
-			labID += 2; //increase the label IDs
-			push(); //push the labels onto stack
+			labID += 1;
+			//Reallocates the stack for label
+			stackSize += 1; //increases size
+			stack = realloc(stack, sizeof *stack * stackSize);
+			//increases top and sets it to the labels
+			++top;
+			stack[top] = labID; //sets new label
 			//prints out the label to jump to
-			printf("\tbeqz $t%d,L%d\n", $2.reg, stack[top-1]);	
+			printf("\tbeqz $t%d,L%d\n", $2.reg, stack[top]);
 		}
 
 else_head	: ELSE COLON {
+	  		labID += 1;
+			//Reallocates the stack for label
+			stackSize += 1; //increases size
+			stack = realloc(stack, sizeof *stack * stackSize);
+			//increases top and sets it to the labels
+			++top;
+			stack[top] = labID; //sets new label
 	  		//prints out the labels
-			printf("\tb L%d\nL%d:\n", stack[top], stack[top-1]);
+			printf("\tj L%d\nL%d:\n", stack[top], stack[top-1]);
 		}
 
 while_stmt	: while_head statements ENDWHILE {
 	   		//prints the labels
-			printf("\tb L%d\nL%d:\n", stack[top-1], stack[top]);
+			printf("\tj L%d\nL%d:\n", stack[top-1], stack[top]);
 			pop(); //pops out the labels
 		}
 
 while_head	: WHILE {
 			labID += 2; //increase the label counter
 			push(); //push the labels onto stack
-			printf("L%d:\t", stack[top-1]);
+			printf("L%d:\n", stack[top-1]);
 		}
 		  expression COLON {
 			//prints out the expression's resulting reg and label
